@@ -279,6 +279,35 @@ const getContractByName = async (contractName) => {
   return result;
 };
 
+// Checks the issuer's logs contract to find
+// the latest log belonging to the given DID
+const getVCStatusByDID = async (did) => {
+  const pkh = did.split("did:pkh:tz:")[1];
+  const contract = await tezos.contract.at(
+    contractConfig.issuerContractAddress
+  );
+  const contents = await contract.storage();
+  const lastLogOfThisAddress = contents?.logs
+    ?.filter((log) => log.did === pkh)
+    .sort((a, b) => new Date(b.time) - new Date(a.time))?.[0];
+  return lastLogOfThisAddress;
+};
+
+// Checks the trusted issuers contract to find
+// if the given issuerDID is trusted
+const getIssuerStatusByDID = async (issuerDID) => {
+  const pkh = issuerDID.split("did:pkh:tz:")[1];
+  const contract = await tezos.contract.at(
+    contractConfig.trustedIssuersListContractAddress
+  );
+  const contents = await contract.storage();
+  const isIssuerTrusted =
+    contents?.trustedIssuers?.filter((issuer) => issuer.did === pkh)?.length > 0
+      ? true
+      : false;
+  return isIssuerTrusted;
+};
+
 export {
   getBalance,
   getMapSize,
@@ -292,4 +321,6 @@ export {
   getPolicyByName,
   getContract,
   getContractByName,
+  getVCStatusByDID,
+  getIssuerStatusByDID,
 };

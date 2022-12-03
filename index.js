@@ -3,6 +3,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import { getBalanceRoute } from "./routes/balance.js";
 import { getLogRoute } from "./routes/logs.js";
+import { getVerifierRoute } from "./routes/verifier.js";
 import dotenv from "dotenv";
 
 // set up express
@@ -12,9 +13,10 @@ const port = 3000;
 
 dotenv.config();
 
-// Load speficig endspoints
+// Load spesific endpoints
 getBalanceRoute(client);
 getLogRoute(client);
+getVerifierRoute(client);
 
 // Swagger Setup
 const swaggerDefinition = {
