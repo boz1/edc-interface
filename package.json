@@ -15,6 +15,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@spruceid/didkit-wasm-node": "^0.2.1",
     "@taquito/signer": "^14.0.0",
     "@taquito/taquito": "^13.0.1",
     "@taquito/tezbridge-signer": "^14.0.0",
