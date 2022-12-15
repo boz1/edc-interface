@@ -296,17 +296,37 @@ const getVCStatusByDID = async (did) => {
 // Checks the trusted issuers contract to find
 // if the given issuerDID is trusted
 const getIssuerStatusByDID = async (issuerDID) => {
-  const pkh = issuerDID.split("did:pkh:tz:")[1];
+  // const pkh = issuerDID.split("did:pkh:tz:")[1];
   const contract = await tezos.contract.at(
     contractConfig.trustedIssuersListContractAddress
   );
   const contents = await contract.storage();
+  const asd = contents.trusted_issuers;
+  const trustedIssuers = [...contents.trusted_issuers.valueMap];
   const isIssuerTrusted =
-    contents?.trustedIssuers?.filter((issuer) => issuer.did === pkh)?.length > 0
+    trustedIssuers.filter((issuer) => {
+      return issuer[0].replace(/['"]+/g, "") === issuerDID;
+    })?.length > 0
       ? true
       : false;
   return isIssuerTrusted;
 };
+
+// Adds an issuer to the trusted issuers list
+// const addIssuer = async (issuerDID, name) => {
+//   let result = await tezos.contract
+//     .at(contractConfig.trustedIssuersListContractAddress)
+//     .then((contract) => {
+//       return contract.methods.addIssuer(issuerDID, name).send();
+//     })
+//     .then((hash) => {
+//       return hash.hash;
+//     })
+//     .catch((error) => {
+//       return error;
+//     });
+//   console.log("Return Object: " + result);
+// };
 
 export {
   getBalance,
