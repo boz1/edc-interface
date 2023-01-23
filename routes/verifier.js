@@ -1,5 +1,63 @@
 import { getVCStatusByDID, getIssuerStatusByDID } from "../taquito/contract.js";
-import { verifyCredential } from "@spruceid/didkit-wasm-node";
+import {
+  verifyCredential,
+  verifyPresentation,
+} from "@spruceid/didkit-wasm-node";
+
+const verifyPresentationHelper = async (VC, VP) => {
+  // Check if the subject is the holder of the VP
+  if (VP?.holder === VC?.credentialSubject?.id) {
+    // Check if log exists
+    const log = await getVCStatusByDID(VC?.credentialSubject?.id);
+    if (
+      log &&
+      log?.message === "Credentials have been published to the blockchain"
+    ) {
+      // Verify the issuer's identity
+      const issuer = VC?.issuer;
+      const isIssuerTrusted = await getIssuerStatusByDID(issuer);
+      if (isIssuerTrusted) {
+        // Verify the signature on the VC
+        const verifyOptionsString = "{}";
+        const verifyResult = JSON.parse(
+          await verifyCredential(JSON.stringify(VC), verifyOptionsString)
+        );
+        // If credential verification is successful, verify the presentation
+        if (verifyResult?.errors?.length === 0) {
+          const res = JSON.parse(
+            await verifyPresentation(JSON.stringify(VP), verifyOptionsString)
+          );
+          // If verification is successful
+          if (res.errors.length === 0) {
+            return "accept";
+          } else {
+            const errorMessage = `Unable to verify presentation: ${res.errors.join(
+              ", "
+            )}`;
+            console.error(errorMessage);
+          }
+        } else {
+          const errorMessage = `Unable to verify credential: ${verifyResult.errors.join(
+            ", "
+          )}`;
+          console.error(errorMessage);
+        }
+      } else {
+        const errorMessage =
+          "Unable to find the issuer in the trusted issuers registry.";
+        console.error(errorMessage);
+      }
+    } else {
+      const errorMessage = "Unable to detect a log about the credential.";
+      console.error(errorMessage);
+    }
+  } else {
+    const errorMessage = "The credential subject does not match the VP holder.";
+    console.error(errorMessage);
+  }
+
+  return "reject";
+};
 
 const getVerifierRoute = (client) => {
   /**
@@ -7,7 +65,7 @@ const getVerifierRoute = (client) => {
    * /verify:
    *   post:
    *     summary: Verify a presented VC/VP.
-   *     description: Given a VC/VP, checks/verifies the issuer logs, signatures and issuer identity on it. If all checks pass, gives access to the system.
+   *     description: Given a VC/VP, checks/verifies the issuer logs, signatures and issuer identity on it. If all checks pass, returns accept.
    *     requestBody:
    *       required: true
    *       content:
@@ -33,34 +91,74 @@ const getVerifierRoute = (client) => {
     console.log("Verification endpoint triggered");
     try {
       let status = "reject";
-      const VC = req.body;
-      // Check if log exists
-      const log = await getVCStatusByDID(VC?.credentialSubject?.id);
-      if (
-        log &&
-        log?.message === "Credentials have been published to the blockchain"
-      ) {
-        // Verify the issuer's identity
-        const issuer = VC?.issuer;
-        const isIssuerTrusted = await getIssuerStatusByDID(issuer);
-        if (isIssuerTrusted) {
-          // Verify the signature on the credential
-          const verifyOptionsString = "{}";
-          const verifyResult = JSON.parse(
-            await verifyCredential(JSON.stringify(VC), verifyOptionsString)
-          );
-          // If verification is successful
-          if (verifyResult.errors.length === 0) {
-            status = "accept";
+      const VC_TYPE = "Company Credential";
+      const credential = req.body;
+      // Check type of the credential (VC or VP)
+      if (credential?.type?.includes("VerifiablePresentation")) {
+        // Check the data type of the VerifiableCredential field
+        if (Array.isArray(credential?.verifiableCredential)) {
+          const VC = credential?.verifiableCredential?.filter((vc) =>
+            vc.type?.includes(VC_TYPE)
+          )?.[0];
+          if (VC) {
+            status = await verifyPresentationHelper(VC, credential);
           } else {
-            const errorMessage = `Unable to verify credential: ${verifyResult.errors.join(
-              ", "
-            )}`;
+            const errorMessage =
+              "Unable to find a CompanyCredential or EmployeeCredential VC in the VP";
             console.error(errorMessage);
           }
+        } else {
+          // No VCs in VP
+          const errorMessage =
+            "Unable to detect verifiable credentials in the VP";
+          console.error(errorMessage);
         }
+      } else if (credential?.type?.includes("VerifiableCredential")) {
+        // Check the type of the credential
+        const VC = credential;
+        if (VC?.type?.includes(VC_TYPE)) {
+          // Check if log exists
+          const log = await getVCStatusByDID(VC?.credentialSubject?.id);
+          if (
+            log &&
+            log?.message === "Credentials have been published to the blockchain"
+          ) {
+            // Verify the issuer's identity
+            const issuer = VC?.issuer;
+            const isIssuerTrusted = await getIssuerStatusByDID(issuer);
+            if (isIssuerTrusted) {
+              // Verify the signature on the VC
+              const verifyOptionsString = "{}";
+              const verifyResult = JSON.parse(
+                await verifyCredential(JSON.stringify(VC), verifyOptionsString)
+              );
+              // If verification is successful
+              if (verifyResult?.errors?.length === 0) {
+                status = "accept";
+              } else {
+                const errorMessage = `Unable to verify credential: ${verifyResult.errors.join(
+                  ", "
+                )}`;
+                console.error(errorMessage);
+              }
+            } else {
+              const errorMessage =
+                "Unable to find the issuer in the trusted issuers registry.";
+              console.error(errorMessage);
+            }
+          } else {
+            const errorMessage = "Unable to detect a log about the credential.";
+            console.error(errorMessage);
+          }
+        } else {
+          const errorMessage =
+            "The type of the credential is not CompanyCredential or EmployeeCredential.";
+          console.error(errorMessage);
+        }
+      } else {
+        const errorMessage = "Unable to determine the type of the credential.";
+        console.error(errorMessage);
       }
-
       res.status(200);
       res.send(JSON.stringify({ status }));
     } catch (error) {

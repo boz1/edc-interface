@@ -301,7 +301,6 @@ const getIssuerStatusByDID = async (issuerDID) => {
     contractConfig.trustedIssuersListContractAddress
   );
   const contents = await contract.storage();
-  const asd = contents.trusted_issuers;
   const trustedIssuers = [...contents.trusted_issuers.valueMap];
   const isIssuerTrusted =
     trustedIssuers.filter((issuer) => {
